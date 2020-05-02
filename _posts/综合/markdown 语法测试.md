@@ -411,7 +411,9 @@ public class EntityUtil {
 ```
 
 
-# 4. 测试数学公式
+# 4. 其他测试
+
+## 4.1 测试数学公式
 
 - 行内公式：$res = \sum_{i=1}^{n} a[i]$
 - 测试多行公式 $$res = \sum_{i=1}^{n} a[i]$$
@@ -421,7 +423,7 @@ $$
 \begin{cases}
     \begin{align}
     4x_1-5x_2&=-13 \nonumber \\
-    -2x_1+3x_2 &= 9 \nonumber
+    -2x_1+3x_2 &= 9 \nonumber 
     \end{align}
     \ \Rightarrow \ 
     Ax=b，其中\ A = 
@@ -435,3 +437,11 @@ $$
     \end{bmatrix}
 \end{cases}
 $$
+
+## 4.2 测试表格
+
+|比较项|RESTful|RPC|
+|:---:|:---:|:---:|
+|性能|略低|较高|
+|灵活度|高|低|
+|应用|微服务架构|SOA架构|
