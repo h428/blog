@@ -9,14 +9,14 @@ date: 2020-09-06 16:32:49
 # JVM 基础概念
 
 - java 的编译到执行的过程
-![java 编译到执行的过程](https://gitee.com/hao77428/img/raw/master/note/00000139.jpg)
+![java 编译到执行的过程](https://gitee.com/h428/img/raw/master/note/00000139.jpg)
 
 - java 为跨平台演变为跨语言，通过 jvm 与 class 可以实现跨语言，任何语言只要能编译为 class 字节码，则可以在 jvm 上执行（基于 class 和 jvm 标准）
-![java 跨语言](https://gitee.com/hao77428/img/raw/master/note/00000140.jpg)
+![java 跨语言](https://gitee.com/h428/img/raw/master/note/00000140.jpg)
 
 
 - 常见 jvm 实现，最常见的是 HotSpot，也是 jdk 默认的实现（java -version 可查看）
-![常见 jvm](https://gitee.com/hao77428/img/raw/master/note/00000141.jpg)
+![常见 jvm](https://gitee.com/h428/img/raw/master/note/00000141.jpg)
 
 # Class 文件结构
 
@@ -40,7 +40,7 @@ date: 2020-09-06 16:32:49
 - 开头固定为 `CA FE BA BE 00 00 00 34` 表示这是一个 class 文件
 - 观察 ByteCode 方法：javap、JBE、JclassLib（Idea 插件）
 - Class 文件结构大致如图所示：
-![class 文件结构](https://gitee.com/hao77428/img/raw/master/note/00000146.jpg)
+![class 文件结构](https://gitee.com/h428/img/raw/master/note/00000146.jpg)
 
 # 类加载过程
 
@@ -53,12 +53,12 @@ date: 2020-09-06 16:32:49
     - resolution：把常量池引用转换为直接的内存地址
 - initializing：静态变量赋值为初始值
 - 当 jvm 将 class 文件加载到内存后，会生成两块区域，第一块就代表 class 字节码，第二块为 Class 类的内容，且其包含嘞指向字节码的指针，我们通过反射拿到 Class.Method 时，指向的是 Class，当执行方法时，会通过 Class 中的类字节码指针找到方法区，然后翻译成 java 指令并执行
-![类加载过程](https://gitee.com/hao77428/img/raw/master/note/00000150.jpg)
+![类加载过程](https://gitee.com/h428/img/raw/master/note/00000150.jpg)
 
 ## 类加载器介绍
 
 - JVM 中有好几个 ClassLoader，对于不同类别的 class，会采用不同的类加载器加载（红线为双亲委派，即类加载过程）
-![类加载器](https://gitee.com/hao77428/img/raw/master/note/00000147.jpg)
+![类加载器](https://gitee.com/h428/img/raw/master/note/00000147.jpg)
 - 例如下述代码：
 ```java
 public class Main {
@@ -84,7 +84,7 @@ public class Main {
 ## loading 过程：双亲委派及验证
 
 - 下图为类加载过程：
-![类加载过程](https://gitee.com/hao77428/img/raw/master/note/00000148.jpg)
+![类加载过程](https://gitee.com/h428/img/raw/master/note/00000148.jpg)
 - 为什么采用双亲委派：主要是为了安全，通过双亲委派，jvm 将避免加载用户覆盖标准类库，例如自定义的 java.lang.String 并不会被 jvm 加载；次要则是避免资源浪费问题，避免重复加载
 - 注意，双亲委派中的父加载器不是类加载器的加载器，也不是通过 extends 关键字体现的类加载器的父类加载器，而是 ClassLoader 中的 parent 域指明：AppClassLoader 的加载器是 Bootstrap，但其父加载器是 Extension，即 App 找不到会先去 Extension 中找
 - 父加载器是通过提前定义好的组合关系来确定的，并不是通过 extends 确定，例如下述代码说明，各个加载器的父子关系为：App --> Extension --> Bootstrap
@@ -198,7 +198,7 @@ public class Main {
 }
 ```
 - 补充：JVM 的混合模式
-![JVM 混合模式](https://gitee.com/hao77428/img/raw/master/note/00000149.jpg)
+![JVM 混合模式](https://gitee.com/h428/img/raw/master/note/00000149.jpg)
 
 
 ## 打破双亲委派机制（热部署原理）
@@ -323,7 +323,7 @@ public class Main {
 }
 ```
 - 上述 main 方法生成的字节码如下：
-![miain 方法字节码](https://gitee.com/hao77428/img/raw/master/note/00000151.jpg)
+![miain 方法字节码](https://gitee.com/h428/img/raw/master/note/00000151.jpg)
 - 我们可以看到，`Main m = new Main();` 会分成好几部执行：
     - `new`：首先创建对象，此时对象为默认值，处于版初始化状态
     - `invokespecial`：为对象执行构造方法初始化，只有执行完构造方法后，对象才真正初始化完毕
@@ -343,7 +343,7 @@ public class Main {
 ### 硬件基础
 
 - 存储器的存储结构大致如图所示，注意 L1, L2 是 CPU 内部的缓存，L3 是外部缓存且为各个 CPU 共享
-![存储器的存储结构](https://gitee.com/hao77428/img/raw/master/note/00000152.jpg)
+![存储器的存储结构](https://gitee.com/h428/img/raw/master/note/00000152.jpg)
 - CPU 到访问各个组件数据所需 CPU 时钟周期和时间大致如下：
     - 寄存器：1 cycle,
     - L1 cache：3 - 4 cycles, 1 ns
@@ -355,14 +355,14 @@ public class Main {
 - 硬件级解决并发并行下的数据一致性问题：
     - 对总线加锁（总线锁），老的 CPU 采用，会大大降低并发并行效率，因为锁住了整个总线，导致其他 CPU 无法从内存取数据
     - 线代 CPU 最常见的解决办法是采用各种各样的一致性协议，协议有很多，最常提到的就是 MESI Cache 一致性协议（Intel CPU 采用的协议）
-    ![MESI](https://gitee.com/hao77428/img/raw/master/note/00000154.jpg)
+    ![MESI](https://gitee.com/h428/img/raw/master/note/00000154.jpg)
 
 
 ### 缓存行与伪共享问题
 
 - 缓存行：基于局部性原理，CPU 再读取并设置缓存时，并不只是单单设置该数据到缓存，而是当前数据相邻的若干数据一起读到缓存中并缓存，这就是缓存行，一般缓存行为 64 Byte
 - 伪共享：位于同一缓存行的不同数据被两个不同 CPU 锁定，产生互相影响的伪共享问题
-![缓存行](https://gitee.com/hao77428/img/raw/master/note/00000153.jpg)
+![缓存行](https://gitee.com/h428/img/raw/master/note/00000153.jpg)
 - 缓存行对齐代码举例，下面这个类没有做缓存行对齐，多线程下可能导致伪共享问题，增加运行时间
 ```java
 public class Main {
@@ -462,7 +462,7 @@ public class Main {
 ### 乱序读
 
 - 乱序读：CPU 会打乱原来的执行顺序，其可能会在执行一条指令的过程中（比如去内存读数据，慢 100 倍），去同时执行另一条指令，当然前提是两条指令没有依赖关系（有点像是内部多线程）
-![乱序读](https://gitee.com/hao77428/img/raw/master/note/00000155.jpg)
+![乱序读](https://gitee.com/h428/img/raw/master/note/00000155.jpg)
 - 下面代码验证了乱序读的问题，比如我一直运行到第 968444 次发生了乱序读，导致 x y 同时为 0，程序终止：
 ```java
 public class Main {
@@ -597,14 +597,14 @@ public class Main {
 - 除了内存屏障，硬件级别的 lock 指令也能实现有序性保障：lock 是一个原子指令，例如 x86 上的 `lock ...` 指令是一个 Full Barrier，执行时会锁住在内存子系统以确保执行顺序，甚至跨多个 CPU
 - Software Locks 通常使用内存屏障或原子指令来实现变量可见性和保持程序顺序，软件的内存屏障基于硬件，例如 JVM 中的 volatile 也基于类似内存屏障的原理，不过其为 JVM 级别的内存屏障
 - JSR133 规定了 JVM 的 4 种内存屏障，注意这些屏障是软件层级的，依赖于硬件层级：
-![Java 内存屏障](https://gitee.com/hao77428/img/raw/master/note/00000156.jpg)
+![Java 内存屏障](https://gitee.com/h428/img/raw/master/note/00000156.jpg)
 
 ## volatile 实现细节
 
 - 现在有一个趋势，就是尽量用 synchronize 而避免采用 volatile，因为 synchronize 在优化后性能已经很高了，volatile 反而很少用，就是面试容易问到
 - 字节码层面：access_flags 有一个 volatile 标记：ACC_VOLATILE
 - JVM 层面：在所有 volatile 变量的读/写操作前后都会加上相关内存屏障
-![volatile 的 jvm 实现](https://gitee.com/hao77428/img/raw/master/note/00000157.jpg)
+![volatile 的 jvm 实现](https://gitee.com/h428/img/raw/master/note/00000157.jpg)
 - 硬件层面：
     - 针对 jvm 的内存屏障，不同的虚拟机有不同实现，甚至同一虚拟机在不同 OS 实现也不尽相同
     - 要观察硬件层级的实现，需要使用 hsdis 观察汇编码，可发现其本质为通过 `lock xxx`，使得执行 xxx 指令时对内存区域加锁，确保不会出现一致性问题，[参考地址](https://blog.csdn.net/qq_26222859/article/details/52235930)
@@ -665,11 +665,11 @@ public class C2 {
 }
 ```
 - 无参构造器的字节码
-![无参构造器的字节码](https://gitee.com/hao77428/img/raw/master/note/00000161.jpg)
+![无参构造器的字节码](https://gitee.com/h428/img/raw/master/note/00000161.jpg)
 - 单参构造器的字节码
-![单参构造器的字节码](https://gitee.com/hao77428/img/raw/master/note/00000162.jpg)
+![单参构造器的字节码](https://gitee.com/h428/img/raw/master/note/00000162.jpg)
 - 双参构造器的字节码
-![双参构造器的字节码](https://gitee.com/hao77428/img/raw/master/note/00000163.jpg)
+![双参构造器的字节码](https://gitee.com/h428/img/raw/master/note/00000163.jpg)
 
 ### (2) 对象在内存中的存储布局
 
@@ -774,9 +774,9 @@ public class Main {
 - markword 非常复杂，且各版本实现都不一样，下面探讨的是 HotSpot 1.8 的实现
 - markword 长度为 64/32 位，主要基于最后的 3 位标记对象处于5 不同的状态：4 锁 + 1 GC
 - 根据对象所处的不同状态，前面的位有不同的含义，各个状态和对应的位含义如下图所示
-![markword](https://gitee.com/hao77428/img/raw/master/note/00000164.jpg)
+![markword](https://gitee.com/h428/img/raw/master/note/00000164.jpg)
 - 注意，上图中的 markword 虽为 32 位，但 64 位和其含义一样，多出来的位可能保留未使用或者扩充部分数据使其变得更长，但含义不变，具体对比可参照下图：
-![markword2](https://gitee.com/hao77428/img/raw/master/note/00000165.jpg)
+![markword2](https://gitee.com/h428/img/raw/master/note/00000165.jpg)
 - CMS promoted object 和 GC 有关，free 呢？ // todo
 - 详细内容请参考 synchronize 实现原理：新版的 synchronize 有一个锁升级的过程，通过 markword 标记对象的所处的不同锁状态（无锁、偏向、自旋、重量级锁）
 
@@ -801,7 +801,7 @@ public class Main {
 ### (5) 对象怎么分配（GC 相关内容）
 
 - 详细原理参考 GC 相关内容，此处给出对象的分配流程图
-![分配对象过程](https://gitee.com/hao77428/img/raw/master/note/00000144.jpg)
+![分配对象过程](https://gitee.com/h428/img/raw/master/note/00000144.jpg)
 
 
 ### (6) Object o = new Object() 在内存中占用多少字节
@@ -813,7 +813,7 @@ public class Main {
 
 
 - JVM 运行时，内存划分为下述区域：
-![JVM 运行时数据区](https://gitee.com/hao77428/img/raw/master/note/00000166.jpg)
+![JVM 运行时数据区](https://gitee.com/h428/img/raw/master/note/00000166.jpg)
 
 - PC：Program Counter，程序计数器，存放指令位置，每个线程都有自己的 PC，虚拟机的运行类似于这样的循环：
 ```java
@@ -837,7 +837,7 @@ while (true) {
     - 并非只有编译器才能将常量织入常量池，运行期间也可通过 `String.intern()` 方法进行优化将字符串存入常量池
 - Heap：堆，GC 的区域，所有线程共享
 - 各线程以及使用的各个区域大致如图：
-![线程内存图](https://gitee.com/hao77428/img/raw/master/note/00000167.jpg)
+![线程内存图](https://gitee.com/h428/img/raw/master/note/00000167.jpg)
 
 
 ## 栈帧 Frame 与常用 JVM 指令
@@ -863,9 +863,9 @@ public class Main {
 }
 ```
 - 首先，不管是 `i = i++;` 还是 `i = ++i;`，涉及的变量相同，因此他们的 Frame 拥有相同的局部变量表，我们使用 jclass lib，可观察到 main 方法共有两个局部变量，一个为 args 一个为 i：
-![局部变量表](https://gitee.com/hao77428/img/raw/master/note/00000168.jpg)
+![局部变量表](https://gitee.com/h428/img/raw/master/note/00000168.jpg)
 - 对于 `i = i++;`，main 方法的字节码如下：
-![i++ 字节码](https://gitee.com/hao77428/img/raw/master/note/00000169.jpg)
+![i++ 字节码](https://gitee.com/h428/img/raw/master/note/00000169.jpg)
 - 我们可以看到，执行流程为（为方便描述，将局部变量表记为 tab，栈顶记为 top，push 和 pop 表示操作栈的入栈出栈）：
     - `bipush 8`：byte 类型 8 入栈，此时 `top = 8`
     - `istore_1`：pop 栈顶并赋值给 `tab[1]`，此时 `tab[1] = 8`
@@ -873,7 +873,7 @@ public class Main {
     - `iinc 1 by 1`：对 `tab[1]` 执行 + 1 操作，此时 `tab[1] = 9, top = 8`
     - `istore_1`： pop 栈顶并赋值给 `tab[1]`，此时 `tab[1] = 8`
     - 因而最终结果为 8
-- 对于 `i = ++i;`，main 方法字节码如下：![ii+ 字节码](https://gitee.com/hao77428/img/raw/master/note/00000170.jpg)
+- 对于 `i = ++i;`，main 方法字节码如下：![ii+ 字节码](https://gitee.com/h428/img/raw/master/note/00000170.jpg)
 - 我们可以看到执行流程为：
     - `bipush 8`：byte 类型 8 入栈，此时 `top = 8`
     - `istore_1`：pop 栈顶并赋值给 `tab[1]`，此时 `tab[1] = 8`
@@ -900,13 +900,13 @@ public class Main {
 
 - Dynamic Linking 和 Return Address 主要涉及方法的调用和返回值
 - 下面直接给出视频中的例子截图，有问题需要自己手动测试
-- Byte 赋值操作：![Byte 赋值操作](https://gitee.com/hao77428/img/raw/master/note/00000171.jpg)
-- Short 赋值操作：![Short 赋值操作](https://gitee.com/hao77428/img/raw/master/note/00000172.jpg)
-- 非静态方法且带参数的 Short 赋值操作：![非静态方法且带参数的 Short 赋值操作](https://gitee.com/hao77428/img/raw/master/note/00000173.jpg)
-- 加法操作：![加法操作](https://gitee.com/hao77428/img/raw/master/note/00000174.jpg)
-- 创建对象及对象方法调用：![创建对象及对象方法调用](https://gitee.com/hao77428/img/raw/master/note/00000175.jpg)
-- 返回值：![返回值](https://gitee.com/hao77428/img/raw/master/note/00000176.jpg)
-- 递归：![递归](https://gitee.com/hao77428/img/raw/master/note/00000177.jpg)
+- Byte 赋值操作：![Byte 赋值操作](https://gitee.com/h428/img/raw/master/note/00000171.jpg)
+- Short 赋值操作：![Short 赋值操作](https://gitee.com/h428/img/raw/master/note/00000172.jpg)
+- 非静态方法且带参数的 Short 赋值操作：![非静态方法且带参数的 Short 赋值操作](https://gitee.com/h428/img/raw/master/note/00000173.jpg)
+- 加法操作：![加法操作](https://gitee.com/h428/img/raw/master/note/00000174.jpg)
+- 创建对象及对象方法调用：![创建对象及对象方法调用](https://gitee.com/h428/img/raw/master/note/00000175.jpg)
+- 返回值：![返回值](https://gitee.com/h428/img/raw/master/note/00000176.jpg)
+- 递归：![递归](https://gitee.com/h428/img/raw/master/note/00000177.jpg)
 - invoke 指令：
     - InvokeStatic：调用静态方法
     - InvokeVirtual：多数情况下，实例方法的调用都使用该指令，该指令自带多态
@@ -951,11 +951,11 @@ public class Main {
 
 ## 补充内容
 
-- jvm 规定的 8 大原子操作，目前 JSR-133 以启用这种描述方式，但 JMM 没有变化，参《深入理解 Java 虚拟机》 P364 ![java 8 大原子操作](https://gitee.com/hao77428/img/raw/master/note/00000158.jpg)
+- jvm 规定的 8 大原子操作，目前 JSR-133 以启用这种描述方式，但 JMM 没有变化，参《深入理解 Java 虚拟机》 P364 ![java 8 大原子操作](https://gitee.com/h428/img/raw/master/note/00000158.jpg)
 - Java 并发内存模型，即并发 JMM
-![JMM](https://gitee.com/hao77428/img/raw/master/note/00000159.jpg)
+![JMM](https://gitee.com/h428/img/raw/master/note/00000159.jpg)
 - happens-before 原则
-![happens-before 原则](https://gitee.com/hao77428/img/raw/master/note/00000160.jpg)
+![happens-before 原则](https://gitee.com/h428/img/raw/master/note/00000160.jpg)
 - as if serial：不管如何排序，单线程执行结果不会改变
 
 
@@ -972,7 +972,7 @@ public class Main {
     - 常量池
     - 静态变量
     - Clazz：加载的 class
-![GC Roots](https://gitee.com/hao77428/img/raw/master/note/00000179.jpg)
+![GC Roots](https://gitee.com/h428/img/raw/master/note/00000179.jpg)
 
 ## GC 算法
 
@@ -1000,18 +1000,18 @@ public class Main {
     - 其中 G1 是逻辑上分代，物理上不分代，而是一块块的 Region
     - 除此之外的，不仅逻辑分代，而且物理分代，例如 CMS，Parallel Scavenge + Parallel Old 都采用了逻辑分代
 - 逻辑分代对堆内存的划分大致如下：
-![堆逻辑分代](https://gitee.com/hao77428/img/raw/master/note/00000180.jpg)
+![堆逻辑分代](https://gitee.com/h428/img/raw/master/note/00000180.jpg)
 - 年轻代的 GC 称作 MinorGC/YGC，老年代的 GC 称作 MajorGC/FullGC，可使用 `-Xmn -Xms/-Xmx` 分别设置年轻代大小和堆总大小，在 jdk 1.8 中默认比例为 1:2
 - 可使用命令 `java -XX:+PrintFlagsFinal -version | grep NewRatio` 查看年轻代、老年代内存比例，经验证在 1.6, 1.7, 1.8 中都为 1:2
-![分代设置](https://gitee.com/hao77428/img/raw/master/note/00000143.jpg)
+![分代设置](https://gitee.com/h428/img/raw/master/note/00000143.jpg)
 - 对于年轻代的回收，主要采用 copying 算法，先在栈上分配，分配不下则试图在 Eden 区分配，当 Eden 区满了触发 MinorGC，将存活的变量拷贝到其中一个 survivor 区，清空 eden 区和另一个 survivor 区，当分代年龄达到设定的阈值时，进入老年代
-![年轻代回收](https://gitee.com/hao77428/img/raw/master/note/00000181.jpg)
+![年轻代回收](https://gitee.com/h428/img/raw/master/note/00000181.jpg)
 - 可以使用参数 `-XX:MaxTenuringThreshold` 设置年轻代进入老年代的阈值，需要特别注意的是，根据对象的 markword，我们知道分代年龄只有 4 位，因此最大值为 15，这也是大多数回收器的默认值
 - 除了阈值外，还有动态年龄的判断能让对象从年轻代进入老年代，若某次 GC 完成后 survivor 区域超过 50% 空间仍存活对象，则会将年龄最大的部分对象放入老年代
-![阈值与动态年龄](https://gitee.com/hao77428/img/raw/master/note/00000183.jpg)
+![阈值与动态年龄](https://gitee.com/h428/img/raw/master/note/00000183.jpg)
 - 分配担保：YGC 期间，survivor 区空间不够用了，空间担保使得新分配的对象直接进入老年代
 - 此外，为了对标 C/C++ 中的 Stack，JVM 引入了栈，对于满足栈分配条件的对象，会先尝试在栈上分配，否则在线程本地 TLAB 分配（位于 Eden 区，为线程独享，避免分配争用）
-![分配](https://gitee.com/hao77428/img/raw/master/note/00000182.jpg)
+![分配](https://gitee.com/h428/img/raw/master/note/00000182.jpg)
 - 要在栈上分配，需要满足下列条件：
     - 线程私有小对象：是个小对象，且赋值给线程的局部变量
     - 无逃逸：只在某一块代码块内使用，出了代码块没有别人引用它
@@ -1056,13 +1056,13 @@ public class Main {
     }
 }
 ```
-- 总结一下，分代模型的对象分配过程如下：![对象分配过程](https://gitee.com/hao77428/img/raw/master/note/00000144.jpg)
+- 总结一下，分代模型的对象分配过程如下：![对象分配过程](https://gitee.com/h428/img/raw/master/note/00000144.jpg)
 
 
 ## 垃圾回收器
 
 - Java 目前出现了 10 种垃圾回收器：Serial、Serial Old、Parallel Scavenge、Parallel Old、Par New、CMS（ConcurrentMarkSweep）、G1、ZGC、Shenandoah、Eplison
-![垃圾回收器](https://gitee.com/hao77428/img/raw/master/note/00000142.jpg)
+![垃圾回收器](https://gitee.com/h428/img/raw/master/note/00000142.jpg)
 - 注意 STW 不是立马停，而是到一个 safe point 才停
 - 垃圾收集器与内存大小的关系：
     - Serial：几十兆
@@ -1106,7 +1106,7 @@ public class Main {
 
 
 - Remark 阶段的算法：
-![Remark](https://gitee.com/hao77428/img/raw/master/note/00000145.jpg)
+![Remark](https://gitee.com/h428/img/raw/master/note/00000145.jpg)
 - 三色标记 + Incremental Update
 
 ### G1
@@ -1205,10 +1205,10 @@ public class Main {
 }
 ```
 - 区分概念：内存泄漏 memory leak 和内存溢出 out of memory
-- 我们执行 `java -XX:+PrintCommandLineFlags Main` 观察命令行参数，该命令会打印如下内容： ![设置的 VM 参数](https://gitee.com/hao77428/img/raw/master/note/00000186.jpg)
+- 我们执行 `java -XX:+PrintCommandLineFlags Main` 观察命令行参数，该命令会打印如下内容： ![设置的 VM 参数](https://gitee.com/h428/img/raw/master/note/00000186.jpg)
 - 使用 `java -Xmn10M -Xms40M -Xmx60M -XX:+PrintCommandLineFlags -XX:+PrintGCDetails Main` 设置堆的各分代大小，同时打印 GC 详细信息
-- GC 详细信息前半部分解释如下：![GC 详细信息前半部分](https://gitee.com/hao77428/img/raw/master/note/00000184.jpg)
-- GC 详细信息后半部分解释如下：![GC 详细信息后半部分](https://gitee.com/hao77428/img/raw/master/note/00000185.jpg)
+- GC 详细信息前半部分解释如下：![GC 详细信息前半部分](https://gitee.com/h428/img/raw/master/note/00000184.jpg)
+- GC 详细信息后半部分解释如下：![GC 详细信息后半部分](https://gitee.com/h428/img/raw/master/note/00000185.jpg)
 
 
 ## 调优思路
