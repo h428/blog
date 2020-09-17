@@ -6,6 +6,7 @@ categories:
 date: 2020-09-06 16:32:49
 ---
 
+
 # JVM 基础概念
 
 - java 的编译到执行的过程
@@ -312,29 +313,7 @@ class T {
 }
 ```
 
-### 补充：为什么单例模式的 DCL 版本为什么要加 volatile
 
-- 这涉及到指令重排问题，首先我们看下面这个简单的例子
-```java
-public class Main {
-    public static void main(String[] args) {
-        Main m = new Main();
-    }
-}
-```
-- 上述 main 方法生成的字节码如下：
-![miain 方法字节码](https://gitee.com/h428/img/raw/master/note/00000151.jpg)
-- 我们可以看到，`Main m = new Main();` 会分成好几部执行：
-    - `new`：首先创建对象，此时对象为默认值，处于版初始化状态
-    - `invokespecial`：为对象执行构造方法初始化，只有执行完构造方法后，对象才真正初始化完毕
-    - `astore_1`：把对象赋值给 m
-- 本身若是指令正常按序执行，不加 volatile 也不会出任何问题，但由于指令可能会重排，即可能先执行 astore_1 再执行 invokespecial，此时对象会处于半初始化状态，只有等到 invokespecial 执行完毕对象才真正初始化完毕
-- 由于在单利模式中这就导致 INSTANCE 变量会先指向半初始化状态的对象，即变量已经有值指向了一块区域，但这块区域还没完全初始化完成
-- 在单例模式的 Double Check 中：
-    - 在单例的 synchronize 内部，我们赋值操作针对的是成员变量 INSTANCE
-    - 若首次进入创建实例时恰好发生了指令重排，此时 INSTANCE 就处于半初始化状态，指向一个未完全初始化完毕的对象
-    - 这时，首次初始化还未初始化完成，恰好另一个线程也获取单例，实例内部的域的值已经指向了一个未初始化的对象，则外层 check 不为空，则直接返回了一个未初始化的对象
-- 根据 happens-before 原则，对 volatile 的变量的写操作必定先于后续的读操作完成（通过内存屏障保证），从而达到禁止重排的效果，这样另一个线程要么读到 null 进入内部阻塞锁，要么必然读到完整的初始化完毕的对象，这就是为什么单例的 DCL 实现必须加锁的原因
 
 # Java 内存模型
 
@@ -586,7 +565,6 @@ public class Main {
 }
 ```
 
-
 ## 如何保证特定情况不乱序
 
 - 在硬件级别，CPU 通过 CPU 内存屏障实现，不同的 CPU 涉及的汇编指令和具体实现都不同，下面是 Intel CPU 内存屏障实现举例
@@ -601,6 +579,7 @@ public class Main {
 
 ## volatile 实现细节
 
+- volatile 有两个作用：保证线程可见性、禁止指令重排
 - 现在有一个趋势，就是尽量用 synchronize 而避免采用 volatile，因为 synchronize 在优化后性能已经很高了，volatile 反而很少用，就是面试容易问到
 - 字节码层面：access_flags 有一个 volatile 标记：ACC_VOLATILE
 - JVM 层面：在所有 volatile 变量的读/写操作前后都会加上相关内存屏障
@@ -609,11 +588,55 @@ public class Main {
     - 针对 jvm 的内存屏障，不同的虚拟机有不同实现，甚至同一虚拟机在不同 OS 实现也不尽相同
     - 要观察硬件层级的实现，需要使用 hsdis 观察汇编码，可发现其本质为通过 `lock xxx`，使得执行 xxx 指令时对内存区域加锁，确保不会出现一致性问题，[参考地址](https://blog.csdn.net/qq_26222859/article/details/52235930)
 
+### 为什么单例模式的 DCL 版本为什么要加 volatile
+
+- 这涉及到现在 CPU 的指令重排问题，首先我们看下面这个简单的例子
+```java
+public class Main {
+    public static void main(String[] args) {
+        Main m = new Main();
+    }
+}
+```
+- 上述 main 方法生成的字节码如下：
+![miain 方法字节码](https://gitee.com/h428/img/raw/master/note/00000151.jpg)
+- 我们可以看到，`Main m = new Main();` 会分成好几部执行：
+    - `new`：首先创建对象，此时对象为默认值，处于版初始化状态
+    - `invokespecial`：为对象执行构造方法初始化，只有执行完构造方法后，对象才真正初始化完毕
+    - `astore_1`：把对象赋值给 m
+- 本身若是指令正常按序执行，不加 volatile 也不会出任何问题，但由于指令可能会重排，即可能先执行 astore_1 再执行 invokespecial，此时对象会处于半初始化状态，只有等到 invokespecial 执行完毕对象才真正初始化完毕
+- 由于在单利模式中这就导致 INSTANCE 变量会先指向半初始化状态的对象，即变量已经有值指向了一块区域，但这块区域还没完全初始化完成
+- 基于上述指令重排，我们来看单例模式的 DCL 实现：
+```java
+public class Singleton {
+    private static volatile Singleton singleton;
+
+    private Singleton() { }
+
+    public static Singleton getSingleton() {
+        if (singleton == null) {
+            synchronized (Singleton.class) {
+                if (singleton == null) { // double check
+                    singleton = new Singleton(); // volatile here can avoid instructions rearrangement
+                }
+            }
+        }
+        return singleton;
+    }
+}
+```
+- 机遇上述代码，我们看看在单例模式的 Double Check 中，若不加 volatile 会发生什么：
+    - 在单例的 synchronized 内部，我们赋值操作针对的是 static 变量 singleton
+    - 若第一个线程首次进入 synchronized 内部，且还好在执行 `singleton = new Singleton();` 时发生了指令重排，此时 singleton 就处于半初始化状态，指向一个未完全初始化完毕的对象，即 singleton 虽然指向了对象，但构造方法还未执行，此时该对象内部全为默认值
+    - 恰在此时，另一个线程也获取单例，进入 `getSingleton()` 后，发现 singleton 已经指向了一个未初始化的对象，则外层 check 不为空，则直接返回了一个未初始化的对象
+    - 因而，单例模式的单例变量必须添加 volatile 关键字，主要是为了避免指令重排（synchronized 不能避免指令重排）
+- 根据 happens-before 原则，对 volatile 的变量的写操作必定先于后续的读操作完成（通过内存屏障保证），从而达到禁止重排的效果，这样另一个线程要么读到 null 进入内部阻塞锁，要么必然读到完整的初始化完毕的对象，这就是为什么单例的 DCL 实现必须加锁的原因
+
 ## synchronize 实现细节
 
-- 字节码层面：monitorenter 和 monitorexit 指令，告诉 jvm 需要加锁
+- 字节码层面：synchronized 代码块会编译为 monitorenter 和 monitorexit 指令，synchronized 会在方法的 access_flags 打标记，以告诉 jvm 需要加锁
 - JVM 层面：C/C++ 调用了操作系统的同步机制
-- OS 和硬件层面：通过 `lock copxchg 其他指令` 对该指令加锁实现，[参考地址](https://blog.csdn.net/21aspnet/article/details/88571740) 
+- OS 和硬件层面：通过 `lock copxchg 其他指令` 对该指令加锁实现，[参考地址](https://blog.csdn.net/21aspnet/article/details/88571740)
 
 ## 对象内存布局（面试 6 连问）
 
@@ -678,7 +701,7 @@ public class C2 {
 
 #### 普通对象
 
-- 对象头：也叫 markword，8 Byte
+- 对象头：也叫 Mark Word，8 Byte
 - ClassPointer 指针：指向 Class 的指针，-XX:+UseCompressedClassPointers 为 4 字节，不开启为 8 字节
 - 实例数据：
     - 基本数据类型即为基本数据类型类型对应字节长度
@@ -688,7 +711,7 @@ public class C2 {
 
 #### 数组对象
 
-- 对象头：markword，8 Byte
+- 对象头：Mark Word，8 Byte
 - ClassPointer 指针：同上
 - 数组长度：视频说是 4 Byte，但经我测试若开启 `+XX:+UseCompressedClassPointers` 是 4 Byte，若用参数 `-XX:+UseCompressedClassPointers` 取消了默认的 class pointer 的压缩，则变为 8 Byte，使用 `ObjectSizeAgent.sizeOf(new byte[1]) == 32` 测试得出的结果
 - 数组数据：数据类型长度 * 数组长度
@@ -769,22 +792,22 @@ public class Main {
 - 使用 `-XX:-UseCompressedClassPointers` 取消 class pointer 压缩后，再次观察结果，我们可以发现取消压缩后，class pointer 和数组长度都变为 8 Byte
 - 使用 `-XX:-UseCompressedOops` 取消引用压缩后，再次观察结果
 
-### (3) 对象头具体包括什么（markword 具体内容）
+### (3) 对象头具体包括什么（Mark Word 具体内容）
 
-- markword 非常复杂，且各版本实现都不一样，下面探讨的是 HotSpot 1.8 的实现
-- markword 长度为 64/32 位，主要基于最后的 3 位标记对象处于5 不同的状态：4 锁 + 1 GC
+- Mark Word 非常复杂，且各版本实现都不一样，下面探讨的是 HotSpot 1.8 的实现
+- Mark Word 长度为 64/32 位，主要基于最后的 3 位标记对象处于5 不同的状态：4 锁 + 1 GC
 - 根据对象所处的不同状态，前面的位有不同的含义，各个状态和对应的位含义如下图所示
-![markword](https://gitee.com/h428/img/raw/master/note/00000164.jpg)
-- 注意，上图中的 markword 虽为 32 位，但 64 位和其含义一样，多出来的位可能保留未使用或者扩充部分数据使其变得更长，但含义不变，具体对比可参照下图：
-![markword2](https://gitee.com/h428/img/raw/master/note/00000165.jpg)
+![Mark Word](https://gitee.com/h428/img/raw/master/note/00000164.jpg)
+- 注意，上图中的 Mark Word 虽为 32 位，但 64 位和其含义一样，多出来的位可能保留未使用或者扩充部分数据使其变得更长，但含义不变，具体对比可参照下图：
+![Mark Word2](https://gitee.com/h428/img/raw/master/note/00000165.jpg)
 - CMS promoted object 和 GC 有关，free 呢？ // todo
-- 详细内容请参考 synchronize 实现原理：新版的 synchronize 有一个锁升级的过程，通过 markword 标记对象的所处的不同锁状态（无锁、偏向、自旋、重量级锁）
+- 详细内容请参考 synchronize 实现原理：新版的 synchronize 有一个锁升级的过程，通过 Mark Word 标记对象的所处的不同锁状态（无锁、偏向、自旋、重量级锁）
 
 **补充问题：当 Java 处在偏向锁、重量级锁状态时，hashCode 存储在哪**
 
 - 当一个对象已经计算过 identity hash code，它就无法进入偏向锁状态
 - 当一个对象当前正处于偏向锁状态，并且需要计算其 identity hash code 的话，则它的偏向锁会被撤销，并且锁会膨胀为重量锁
-- 重量锁的实现中，ObjectMonitor 类里有字段可以记录下非加锁状态下的 markword，齐总可以存储 identity hash code 的值，或者简单说就是重量级锁可以存下 identity hash code
+- 重量锁的实现中，ObjectMonitor 类里有字段可以记录下非加锁状态下的 Mark Word，齐总可以存储 identity hash code 的值，或者简单说就是重量级锁可以存下 identity hash code
 - synchronize 锁原理：[参考资料1](https://cloud.tencent.com/developer/article/1480590), [参考资料2](https://cloud.tencent.com/developer/article/1484167), [参考资料3](https://cloud.tencent.com/developer/article/1485795), [参考资料4](https://cloud.tencent.com/developer/article/1482500)
 
 ### (4) 对象怎么定位
@@ -1001,12 +1024,14 @@ public class Main {
     - 除此之外的，不仅逻辑分代，而且物理分代，例如 CMS，Parallel Scavenge + Parallel Old 都采用了逻辑分代
 - 逻辑分代对堆内存的划分大致如下：
 ![堆逻辑分代](https://gitee.com/h428/img/raw/master/note/00000180.jpg)
+- 在 JDK 1.7 中，除了年轻代和老年代，还有一个永久代 Permanent Generation，其为 Method Area 的实现，但在 1.8 之后，HotSpot 取消了永久代，采用元数据组 MetaSpace 实现 Method Area
+- 还有一个细节上的区别是，字符串常量池在 1.7 放在永久代中，在 1.8 则放在堆中，MetaSpace 只放 Class 和相关方法等元信息
 - 年轻代的 GC 称作 MinorGC/YGC，老年代的 GC 称作 MajorGC/FullGC，可使用 `-Xmn -Xms/-Xmx` 分别设置年轻代大小和堆总大小，在 jdk 1.8 中默认比例为 1:2
 - 可使用命令 `java -XX:+PrintFlagsFinal -version | grep NewRatio` 查看年轻代、老年代内存比例，经验证在 1.6, 1.7, 1.8 中都为 1:2
 ![分代设置](https://gitee.com/h428/img/raw/master/note/00000143.jpg)
 - 对于年轻代的回收，主要采用 copying 算法，先在栈上分配，分配不下则试图在 Eden 区分配，当 Eden 区满了触发 MinorGC，将存活的变量拷贝到其中一个 survivor 区，清空 eden 区和另一个 survivor 区，当分代年龄达到设定的阈值时，进入老年代
 ![年轻代回收](https://gitee.com/h428/img/raw/master/note/00000181.jpg)
-- 可以使用参数 `-XX:MaxTenuringThreshold` 设置年轻代进入老年代的阈值，需要特别注意的是，根据对象的 markword，我们知道分代年龄只有 4 位，因此最大值为 15，这也是大多数回收器的默认值
+- 可以使用参数 `-XX:MaxTenuringThreshold` 设置年轻代进入老年代的阈值，需要特别注意的是，根据对象的 Mark Word，我们知道分代年龄只有 4 位，因此最大值为 15，这也是大多数回收器的默认值
 - 除了阈值外，还有动态年龄的判断能让对象从年轻代进入老年代，若某次 GC 完成后 survivor 区域超过 50% 空间仍存活对象，则会将年龄最大的部分对象放入老年代
 ![阈值与动态年龄](https://gitee.com/h428/img/raw/master/note/00000183.jpg)
 - 分配担保：YGC 期间，survivor 区空间不够用了，空间担保使得新分配的对象直接进入老年代
@@ -1094,7 +1119,7 @@ public class Main {
 - CMS：即 concurrent mark sweep，并行回收算法，主要针对老年代，配合 ParNew 使用，在 concurrent mark 阶段能让垃圾回收线程和工作线程同时进行，主要包含 4 个阶段：
     - initial mark：会 STW 但只标记 GC Roots，因此时间很短
     - concurrent mark：并发标记，不会 STW，工作线程可以和并发标记同时进行
-    - remark：再次 STW 来找出冲突部分（已经被标记删除的又取消了），也是整个并发标记算法的难点
+    - remark：再次 STW 来找出冲突部分（已经被标记删除的又取消了），也是整个并发标记算法的难点（三色标记法）
     - concurrent sweep：并发清理
 - CMS 问题 1：Memory Fragment，即内存碎片化，由于 CMS 针对老年代的回收，采用的是 mark-sweep 算法，因此必定会有内存碎片化的问题
 - CMS 问题 2：浮动垃圾，在执行第 4 步并发清理的过程中，可能同时产生垃圾，这些垃圾无法在该阶段清理，只能等到下一次 FullGC 才会被清理，这些垃圾称为浮动垃圾
@@ -1102,22 +1127,100 @@ public class Main {
 - 解决方法：降低触发 CMS 的阈值 `-XX:CMSInitiatingOccupancyFraction`
 - 由于 CMS 的 bug 比较多，因此任何一个 jdk 的默认垃圾回收器都不是 CMS
 - 虽然 CMS 毛病和 bug 比较多，比如会产生碎片化问题，但其作为并发 GC 的里程碑，处于一个承前启后的地位，它开启了并发回收，理解 CMS 是理解并发回收的关键，因此需要理解好 CMS 才能更好的地理解 G1 和 ZGC
-- 并发回收算法的关键是如何解决冲突问题，这也是后续包括 G1, ZGC 在内的所有并发回收算法的关键
-
-
-- Remark 阶段的算法：
-![Remark](https://gitee.com/h428/img/raw/master/note/00000145.jpg)
-- 三色标记 + Incremental Update
+- 并发回收算法的关键是如何解决冲突问题，这也是后续包括 G1, ZGC 在内的所有并发回收算法的关键，对于 remark 阶段的算法，CMS、G1、ZGC 分别采用三色标记 + Incremental Update、三色标记 + SATB、颜色指针实现，三色标记参 [并发标记算法：三色标记](#并发标记算法：三色标记)
 
 ### G1
 
-- G1：STW 在 10 ms 以内，逻辑上分代，物理不分代
+- 传统的垃圾回收器，例如 PS + PO，都在物理上分代，当内存特别大时，老年代往往也很大，从而导致 FullGC 十分耗时，基于该原因，G1 横空出世
+- [G1](https://www.oracle.com/technical-resources/articles/javalg1gc.html)：号称 STW 在 10 ms 以内，其在逻辑上分代，物理上不分代，而是一个个 Region
+- 由于 G1 回收器逻辑上分代，物理不分带的堆内存模型，使得其支持上百 G 内存的回收不卡顿（ZGC、Shenandoah 支持 4 T 内存的回收不卡顿）
+- G1 是一种服务端应用使用的垃圾回收器，目标是用在多核、大内存的机器上，它在大多数情况下可以实现指定的 GC 暂停时间，同时还能保持较高的吞吐量，其具有如下特点：
+    - 并发收集
+    - 压缩空闲空间不会延长 GC 的暂停时间
+    - 更易预测的 GC 暂停时间
+    - 适用于不需要实现很高的吞吐量的场景
+- 据研究，G1 的吞吐量比 PS + PO 降低了 15%，但 STW 时间一般只会在 10 - 200 ms
 
-- G1 回收器逻辑上分代，物理不分带，支持上百 G 内存的回收不卡顿
-- ZGC、Shenandoah 支持 4 T 内存的回收不卡顿
-- G1 将内存划分为 Region，优先清理垃圾最多的 Region，即 Garbage First，即 G1
+#### 基本数据结构
+
+**Card Table**
+
+- 在分代模型中，做 YGC 时，对于年轻代的对象，肯定是要扫描一遍的，但对于要查询老年代中的对象也引用了年轻代对象以避免有用的年轻代对象被回收，必须通过扫描老年代得到，这就导致每次 YGC 必须扫描一遍老年代，导致效率十分低下
+- **为了避免 YGC 时扫描整个老年代**，引入 Card Table 概念，在逻辑上，将老年代划分为一个个 Card，并标记每个 Card 是否引用年轻代对象，是则标记为 Dirty，这样做 YGC 时只需要Dirty 的 Card 即可，因为只有 Dirty 的 Card 引用了年轻代的对象
+- 因此对于 YGC，并不需要完全地执行根可达，当发现某个对象位于非 Dirty 的 Card 后，该分支就不继续往后扫描了，大大节省了效率
+- 传统的分代模型都存在该 Card Table，而 G1 的 Region 里面还会进一步划分 Card，对象基于 Card 划分，至少占用一个 Card？（未验证，我是通过 RSet 的 K,V 猜测的，方便自己理解）
+
+**CSet**
+
+- CSet 即 Collection Set，存储一组可以被回收的 Region 的集合
+- 在 CSet 的 Region 中存活的数据会在 GC 过程中被移动到另一个可用的 Region，这是通过 copy 完成的，因此没有内存碎片化问题
+- 注意 CSet 中的分区可以来自 Eden、Survivor、老年代
+- CSet 会占用不到整个堆空间的 1% 大小
+
+**RSet**
+
+- RSet 即 Remembered Set，每个 Region 都拥有一个 RSet，记录了其他 Region 中的对象到本 Region 对象的引用（谁指向了我），有点类似 Card Table，但 RSet 更加细化
+- 首先明确，Region 内部进一步被划分为 Card
+- 这个 RSet 其实是一个 Hash Table，Key 是别的 Region 的起始地址，Value 是一个集合，里面的元素是 Card Table 的 Index；[参考地址](https://tech.meituan.com/2016/09/23/g1.html#rset)
+- 即对于 Region 的 RSet 的一条记录：记录了哪个其他 Region 的哪几个 Card 引用了当前 Region，我们通过 K-V 即 Region-Card 即可快速定位哪个地方引用了当前 Region
+- 通过 RSet，在垃圾回收时可以不用扫描整个 Heap，而只需扫描 RSet 即可，这也是 G1 高速回收的关键，也是后续三色标记算法实现的关键
+- RSet 缺点：
+    - 浪费空间，每个 Region 需要维护 RSet
+    - 对赋值操作有一定的影响，每次赋值需要更新引用的原有指向对象所在 Region 的 RSet 和新指向对象所在 Region 的 RSet（这在 GC 中称为写屏障，注意这个和内存屏障完全两个概念；[barrier 参考地址，看不太懂](https://blog.csdn.net/luzhensmart/article/details/106052574)）
+
+#### G1 内存模型
+
+- G1 将内存划分为一个个 Region，Region 在逻辑上可能为 Eden、Suvivor、Old、Humongous，其在 MixedGC 会优先清理垃圾最多的 Old Region，即 Garbage First，即 G1
+![G1 内存模型](https://gitee.com/h428/img/raw/master/note/00000188.jpg)
 - 需要注意的是，G1 仍然有 FullGC 和 STW，这其实是 GC 算法不可避免的，只能尽量减少 STW 的时间
-- G1：三色标记+SATB
+- 每个 Region 的大小取值可能为 1M, 2M, 4M, 8M, 16M, 32M，也可以通过参数手动指定：`-XX:G1HeapRegionSize`
+- G1 新老年代的比例是弹性的，会根据 GC 时间动态调整，一般不用手工指定，也不建议手工指定，因为这是 G1 预测时间的基准
+- 若某次 YGC 的 STW 时间较长，超出设定的预期时间，则 G1 动态地将年轻代比例降低一点
+- Humongous Object：大对象，超过一个Region 的 50% 则会被当做大对象，若分配内存时检测到超出 Region Size 的一半，则会分配在 Humongous 区域
+
+#### 回收原理
+
+- YGC：
+    - 当尝试在 Eden 空间分配发现内存不足时，会触发 YGC
+    - YGC 时大多数时间是多线程并行执行的，类似 Parallel Scavenge
+    - 其中 RSet 可避免 YGC 时扫描所有的 Old Region，而是直接把 RSet 中的对象 copy 到其他 Region 然后重新指向引用
+    - 整个 YGC 期间会 STW，但由于 Eden + Survivor 的比例不会很大，因此不会长时间 STW
+    - 此外，G1 根据本次 STW 时间动态调整年轻代大小，以减少下次 YGC 的 STW 时间 
+- MixedGC：
+    - 当整个 Heap 的已用空间达到一定比例时，则会触发 MixedGC
+    - MixedGC 的基本流程和 CMS 基本相同，只有清理阶段阶段略有区别，G1 的清理阶段除了年轻代以外，还会对 Old Region 进行筛选，选择垃圾比例最高的 Old Region 回收，这也是 G1 名称的由来；
+    - 还有一个区别就是 G1 清理阶段也是采用的 copying 算法，因此会 STW，但不会有内存碎片；而 CMS 是采用 mark-sweep 的并发清理，不会 STW 但会造成内存碎片问题
+    - 默认比例为 45%，可使用 `-XX:InitiatingHeapOccupacyPercent` 手动设置
+- FGC：当整个 Heap 空间不足或者手动调用了 `System.gc()` 则触发 FGC，即对象分配不下了会产生 FGC
+- 当对象分配的特别快，GC 线程来不及回收导致内存不足时，会触发 FGC，因此针对 G1 的调优，主要是要达到避免 FGC 的目的，YGC 的区域很小，MixedGC 的第二阶段是并发的，因此他们 STW 时间很短，一般不会造成阻塞
+- 若 G1 产生了 FGC，如何处理：
+    - 扩内存
+    - 提高 CPU性能：回收的快，业务逻辑产生对象的速度固定，垃圾回收越快，内存空间越大
+    - 降低 MixedGC 触发的阈值，让 MixedGC 提早发生（默认是 45%）
+- 生产环境能随便 dum 吗：小堆影响不大，大堆会造成服务暂停或卡顿（加 live 可以缓解），dump 前会有 FGC
+- 常见的 OOM 问题有哪些：堆、栈、MethodArea、直接内存
+- G1 三色标记 + SATB
+
+
+### 并发标记算法：三色标记
+
+- CMS 与 G1 都采用三色标记算法实现并发标记与再标记，区别在于 CMS 采用 三色标记 + Incremental Update，G1 采用 三色标记 + SATB
+- 三色标记法，为每个对象标记三种颜色，用于辅助 GC 的标记：
+    - 白色：未被标记的对象
+    - 灰色：自身被标记，成员变量未被标记
+    - 黑色：自身和成员变量均已标记完成
+- 漏标的充分必要条件，两个条件同时满足则发生漏标：在并发标记的过程中，引用关系改变，黑色指向了白色，与此同时，灰色指向白色消失了，则发生漏标
+- B 原本指向 D，A 原本不指向 D，但在并发标记过程的同时指针改变，此时由于 A 已经标记为黑色，不再继续往后标记，从而导致 D 被漏标了，此时若不对黑色 A 重新扫描，会把白色 D 对象当做没有新引用从而回收掉
+![漏标](https://gitee.com/h428/img/raw/master/note/00000189.jpg)
+- 漏标解决方案：打破上述两个条件的其中一个，即破坏其充要条件
+    - 跟踪 A 指向了 D：即 Incremental Update，例如把 A 重新标记为灰色
+    - 跟踪 B 到 D 的删除：SATB，Snapshot at the begining，维护引用的删除，当 B 到 D 的引用消失时，把这个引用推到 GC 堆栈，保证 D 还能被 GC 扫描到
+- 为什么 G1 使用 SATB：
+    - 很显然 SATB 效率更高，采用 Incremental Update 让 A 变为灰色时，将导致重新扫描一遍 A 的成员，若 A 有很多成员，则效率很低
+    - 若灰色 B 指向 D 引用消失时，D 并没有黑色成员指向白色，此时由于引用被 push 到 GC 栈，会导致 D 无法回收（此时 D 应该被回收才对）
+    - 但由于 G1 恰好有 RSet 的存在，对于 GC 栈中的引用，找到引用对象的 Region 并查询 RSet，可快速判定当前对象是否还有 Region 指向它，没有则可以直接回收，不需要扫描整个堆区查找指向白色 D 的引用，因此 SATB 配合 RSet 浑然天成
+- Remark 阶段的算法：
+![Remark](https://gitee.com/h428/img/raw/master/note/00000145.jpg)
 
 ### ZGC
 
@@ -1135,13 +1238,15 @@ public class Main {
 
 ## 如何选择垃圾回收器
 
+### 垃圾回收器对比
+
 - Serial Old、Parallel Old 的组合基本已经没人用了，这是早期内存较低时采用的回收器，随着内存变大，该种组合回收效率大大降低，导致卡死现象
 - jdk 1.8 默认采用 Parallel Scavenge + Parallel Old 的组合（jdk 1.8 默认使用的 `-XX:+UseParallelGC` 就是这种组合），大多数人不知道 GC 原理，因此生产环境大多采用的就是该组合的垃圾回收器，调优大多数调优场景主要针对该组合，因为 G1、ZGC 已经优化得很好，调优参数大大减小
 - jdk 1.9 默认采用的垃圾回收器为 G1
 - 对于 1.8 以上的 jdk，推荐采用 G1 垃圾回收器，尤其是分布式场合
 - 对于分布式锁，一般有一个锁续命问题，但若锁续命时遇上垃圾回收，会导致无法锁续命，因为锁续命是按照时长来的，而若在锁续命过程正好遇到了垃圾回收，尤其是老年代的垃圾回收，会因为超时导致无法续命，锁消失，例如本来 3 秒锁续命一次，但 Parallel Scavenge + Parallel Old 的组合对老年代进行 GC 时，超过 3 秒是很正常的，因此分布式情况下，建议采用 G1
 
-**常见垃圾回收器组合参数设定（1.8）**
+### 常见垃圾回收器组合参数设定（1.8）
 
 - `-XX:+UseSerialGC`：表示 Serial New(DefNew) + Serial Old
     - 小型程序，默认情况下不会是这种选项，HotSpot 会根据计算及配置和 jdk 版本自动选择收集器
@@ -1159,10 +1264,7 @@ public class Main {
     - 1.8.0_181 默认看不出来 Copy MarkCompact
     - 1.8.0_222默认 PS + PO
 
-
 # GC 调优（重点）
-
-
 
 ## JVM 参数分类
 
@@ -1188,7 +1290,7 @@ public class Main {
 - `-XX:+PrintGCCause`：打印 GC 产生的原因
 - `-XX:+UseConcMarkSweepGC`：使用 CMS + ParNew 组合
 
-### 测试参数
+### 测试样例
 
 - 我们采用如下的试验小程序：
 ```java
@@ -1215,7 +1317,7 @@ public class Main {
 
 ### 基础概念
 
-- 吞吐量：用户代码执行时间 / (用户代码执行时间 + 垃圾回收时间)
+- 吞吐量：用户代码执行时间 / （用户代码执行时间 + 垃圾回收时间）
 - 响应时间：STW 越短，响应时间越好
 - 调优之前，首先确定项目追求啥：吞吐量优先，还是响应时间优先，还是在满足一定响应时间的情况下，需要达到多大的吞吐量，一般分为如下三类：
 - 例如：
@@ -1239,8 +1341,6 @@ public class Main {
 - 比如微博每天 1 亿多 pv 的系统一般也就 1500 QPS，5000 QPS 峰值
 - 2C 4G 机器单机一般 1000 QPS
 - 8C 8G 机器单机可承受 7000 QPS
-
-
 
 ### 调优规划
 
@@ -1305,9 +1405,295 @@ public class Main {
 - 如何监控 JVM：使用 jstate, jvisualvm, jprofiler, arthas, top
 
 
-## 调优实战
+## 调优实战：一个例子熟悉工具和命令的使用
+
+- 下述代码模拟风控场景
+```java
+/**
+ * 从数据库中读取信用数据，套用模型，并把结果记录和传输
+ *
+ * @author hao
+ */
+public class Main {
+
+    // 数据库实体类
+    private static class CardInfo {
+        BigDecimal price = new BigDecimal(0.0);
+        String name = "张三";
+        int age = 5;
+        Date birthday = new Date();
+
+        public void m() {} // 模型方法
+    }
+
+    // 线程池：定时任务，50 个线程，DiscardOldestPolicy 策略
+    private static ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(50,
+            new DiscardOldestPolicy());
+
+    public static void main(String[] args) throws Exception {
+        for (;;) {
+            modelFit();
+            Thread.sleep(100); // 模拟业务停顿
+        }
+    }
+
+    private static void modelFit() {
+        List<CardInfo> taskList = getAllCatdInfo(); // 查询数据
+        taskList.forEach(cardInfo -> {
+            executor.scheduleWithFixedDelay(() -> {
+                cardInfo.m(); // 对每个对象执行模型判定，进行风控，不通过不予以贷款
+            }, 2, 3, TimeUnit.SECONDS);
+        });
+    }
+
+    // 模拟数据库查询：查询所有 CardInfo 信息
+    private static List<CardInfo> getAllCatdInfo() {
+        List<CardInfo> taskList = new ArrayList<>();
+
+        for (int i = 0; i < 100; i++) {
+            CardInfo cardInfo = new CardInfo();
+            taskList.add(cardInfo);
+        }
+
+        return taskList;
+    }
+}
+```
+
+### 内置 jdk 分析工具
+
+- `jinfo pid`：打印指定 Java 进程的虚拟机参数的详细信息
+
+#### 线程相关：如 CPU 高占用、死锁等问题
+
+- 启动项目：`java -Xms200M -Xmx200M -XX:+PrintGC Main`
+- 一般是运维团队首先收到报警信息，比如 CPU、内存占用率高，此时才开始定位问题
+- top 命令：找到内存不断增长，CPU 占用率居高不下的进程 pid
+- 使用 `top -Hp pid`：查看该进程的线程信息，找到 CPU 占用率占用率很高的线程
+- `jps`：列出当前系统的所有 java 进程
+- `jstack pid`：
+    - 列出指定 java 进程下的所有线程的详细信息以及运行状态等
+    - 需要注意的是其给出的线程 nid 是 16 进制的
+    - 若 cpu 占用率很高，但是很多 thread 却都处于 waiting 状态，则程序大概率存在问题
+    - 重点关注 waiting blocked 等线程状态信息
+    - 处于 waiting 时，要特别关注 waiting on，线程在等待什么导致被阻塞了
+    - 加入一个进程中有 100 个线程，很多线程都在 waiting on xxx，一定要找到是哪个线程持有这把锁：搜索 jstack 信息，找到 xxx，看看哪个线程持有该锁
+- 作业：
+    - 写一个死锁程序，使用 jstack 观察
+    - 写一个程序，一个线程持有锁不释放，其他线程等待
+- 为什么阿狸规范里规定，线程的名称（尤其是线程池）都要写有意义的名称？怎样自定义线程池里的线程名
+
+#### 内存相关：如 OOM 问题
+
+- 同样显示运维通知、top 定位内存相关进程 id
+- `jstat -gc pid`：打印 gc 信息，用于动态观察 gc 情况，阅读 GC 日志发现频繁 GC 则说明发生内存问题，需要进一步定位调优
+- `jstat -gc pid 500`：每 500 ms 打印 GC 情况
+- 可以使用 jconsole 远程连接并监控 jvm，但依赖于 jmx 协议，服务器启动的同时必须指定 jmx 相关参数和端口，大致内容如下：
+    - `java -Djava.rmi.server.hostname=192.168.25.41 -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=11111 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -XX:+PrintGC -Xms200M -Xmx200M Main`
+![jconsole](https://gitee.com/h428/img/raw/master/note/00000187.jpg)
+- 上述配置的协议，也可以使用 jvisualvm 进行连接，且 jvisualvm 比 jconsole 界面更加好看一点；jprofiler 号称最好用的图形化监控，但收费
+- 很显然，使用图形界面很容易观察出 OOM 问题，但若是面试问起，不能这么回答：因为图形界面基于 JMX，而 JMX 会将进程 attach 到 JMX 从而会影响原进程的执行效率，因此生产环境要避免使用
+    - 已经上线不能用图形界面，该用什么呢？：命令行工具，arthas 等在线分析工具
+    - 图形界面到底用在什么地方？测试！测试的时候进行监控（压测）
+- 对于内存问题，一般我们找出是什么类的对象最多，一般就能找到出问题的地方，因此我们可以用 `jmap -histo pid | head -20` 查看最多数量对象的 20 个，这个命令相当于是在线分析的一种，对系统影响相对较小，可以使用
+- jmap 也可以手动导出堆转储文件，但生产环境要避免使用：
+    - `jmap -dump:format=b,file=out.dat pid`：将指定进程的堆内存信息以二进制形式导出到 out.dat 文件
+    - `jhat -J-mx512M out.dat`：导出的文件下载后，可以在其他机器使用 jhat 分析，还支持 OQL 查询，还可以使用 jvisualvm 图形工具分析
+    - 虽然离线分析很强大，但实际上 dump 会导致系统卡顿，尤其对于大内存的系统，在 dump 堆转储文件期间会对进程产生很大影响，导致卡顿，因为其需要把整个堆内存信息存储为文件（电商不适合）
+    - 启动 java 程序时若设定了参数 `-XX:+HeapDumpOnOutOfMemoryError` 后，会在 OOM 时自动产生堆转储文件，但同样的对于大内存的 dump 可能造成卡顿，因此实际项目也很少这么干
+    - 有一个 trick，若 java 进程因为 OOM 挂了，且没有设置 `-XX:+HeapDumpOnOutOfMemoryError` 参数，但进程挂了后别急着重启，仍然可以使用 jmap 把 Heap 情况 dump 出来？视频提到，不知怎么做
+    - 若服务器做了高可用，停掉这台服务器对其他服务器不影响，且无其他可用的分析办法时，可尝试考虑使用 dump
+    - 还可以根据业务情况具体分析，若机子内存不那么大，可以挑一个半夜没人的时候或者隔离出机子然后进行 dump
+    - 使用 MAT/jhat 进行 dump 文件分析：[参考地址](https://www.cnblogs.com/baihuitestsoftware/articles/6406271.html)
+- 推荐的分析方法：在线定位，使用 arthas 用于在线排查，但实际上，一般小点的公司用不到
+- 实际上，找到有问题的代码，是最难的地方
+
+### arthas 在线排查工具
+
+- 为什么需要在线排查？
+    - 在生产环境我们经常会碰到一些不好排查的问题，例如线程安全问题，使用最简单的 threaddump 或者 heapdump 不好查到问题原因
+    - 为了排查这些问题，我们会临时添加一些日志，比如在一些关键的函数里打印入参，然后重新打包发布
+    - 如果打了日志还是没找到问题，继续加日志，重新打包发布
+    - 对于上线流程复杂而且审核比较严的公司，从改代码到上线需要层层的流转，会大大影响问题排查的进度
+- arthas：下载和安装请参考官方 github
+- 首先，运行前面的例子，为了避免很快 FullGC，堆内存设置稍大点：`java -Xms20M -Xmx20M -XX:+PrintGC Main`
+- 启动 arthas：`java -jar arthas-boot.jar`，然后选择正在运行的 java 程序，arthas 会 attach 该程序，在进入 arthas 界面后，则可以直接执行 arthas 相关命令
+- help：查看 arthas 常用指令
+- jvm：观察 jvm 信息，有点类似 jinfo 指令
+- thread：查看线程信息，定位线程问题
+- dashboard：观察系统情况
+- jad：反编译，对可能的类即使反编译，十分强大
+    - 动态代理生成的类定位问题
+    - 第三方的类（观察代码）
+    - 版本问题：确定自己最新提交的版本是不是被使用
+- redefine：热替换，可用于改小 Bug，目前有些限制条件
+    - 可以不用停止进程而直接替换源码
+    - 只能该方法实现，方法已经运行完成
+    - 不能改方法名，不能改属性
+- sc：search class
+- watch：watch method
+- heapdump：`heapdump /root/out-20200907.dat` 导出堆转储文件，相当于 `jmap -dump:...`，但对主进程影响很大，一般不用
+- 没有包含的功能：`jmap -histo pid | head -20`，要使用该功能仍需使用 jmap
+
+**热替换测试**
+
+- 有主类 Main 和调用类 TT，main 会每次读取一次输入创建一个 TT 对象并调用一次 m 方法
+```java
+public class Main {
+    public static void main(String[] args) throws IOException {
+        while (true) {
+            System.in.read();
+            new TT().m();
+        }
+    }
+}
+
+public class TT {
+    public void m() {
+        System.out.println(1);
+    }
+}
+```
+- 首先执行 `java Main` 启动主类，其会调用 TT，输入一次打印一个 1
+- 我们假设此时 TT 程序出错，我们希望其打印 2
+- 我们启动 arthas 并进入对应进程，执行反编译：`jad TT` 可以看到反编译后的代码
+- 直接找到 TT 的源码位置，修改 1 为 2，并编译 `javac TT.java`
+- 然后进入 arthas，执行 `redefine /root/rr/TT.class` 进行热替换，成功后会提示 `redefine success, size: 1, classes:TT`
+- 回到 Main 的主界面，继续输入，验证输出是否变为 2
+
+# 调优案例
+
+- OOM 产生的原因多种多样，有些程序未必产生 OOM，但仍然会不断 FGC，导致 CPU 飙高，但内存回收特别少，例如前面的测试小程序
+- 1、硬件升级反而卡顿的问题（见上）
+- 2、线程池不当运用产生 OOM 问题（见上）
+    - 或者不断往 List 里加对象导致 OOM（实在太 low 了，不太现实）
+- 3、smile jira 问题
+    - 系统频繁 FullGC，并且找不到原因
+    - 解决：最开始一直重启，后来扩内存，并将垃圾回收器换成 G1，成功解决
+- 4、tomcat http-header-size 设置过大
+    - `server.max-http-header-size=10000000`
+    - 导致每个 http 连接来时，占用大量内存，因为头太大了，这样单个 http 连接就占用很多的内存，连接一多，则快速占满内存，导致频繁 Full GC
+    - `java -Xms256m -Xmx256m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=E:/logs/tmp.hprof -Xloggc:E:/logs/gc.log BootApplication`
+    - 使用 jmeter 模拟并发测试发现会 OOM
+    - 通过分析 dump 发现内存占比最高的类型为 byte[] 字节数组，每个字节数组有 10 M，共有 10 个这样的数组
+    - 进一步分析，发现有 Http11InputBuffer 引用它，根据猜测是 Http 请求缓存过大了，但显然我们是简单请求，无请求体，因而进一步猜测请求头过大，但我们并没有发送请求头，因此可能是设置问题（其实真正要定位到问题是很难的）
+- 5、Lambda 表达式导致方法区溢出问题（MetaSpace/PermGen），或者过多的动态代理字节码技术也可能导致该问题
+- 6、直接内存溢出问题：少见
+    - 深入理解 Java 虚拟机，第 59 页，使用 Unsafe 分配直接内存
+    - 或者使用 NIO 导致的问题
+- 7、栈溢出问题：-Xss 设定太小
+- 8、比较一下两段程序的异同，分析一下哪个是更优写法：
+```java
+// 显然第一个写法
+public class Main {
+    public static void main(String[] args) {
+        Object o;
+        for (int i = 0; i < 100; i++) {
+            o = new Object();
+        }
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        // 每次循环都产生个 o 指向堆，若方法不结束，不会被回收
+        // 经测试，查看字节码，jvm 好像做了优化
+        for (int i = 0; i < 100; i++) {
+            Object o = new Object();
+        }
+    }
+}
+```
+- 9、C++ 程序员重写 finalize 引发频繁 GC
+    - 小米云，HBase 同步系统，系统通过 nginx 访问超时报警
+    - 查询日志，发现频繁 GC
+    - 最后排查，发现是 C++ 程序员重写 finalize 引发频繁 GC 问题
+    - 为什么 C++ 程序员会重写 finalize：因为 C++ 有析构函数，C++ 程序员对 Java GC 不了解，以为需要自己手动释放内存
+    - 为什么重写 finalize 导致频繁 GC：因为重写的 finalize 耗时比较长（200 ms），每个对象被回首时都会回调该方法，调用不过来从而导致 GC 不过来，从而引发频繁 GC
+- 10、如果有一个系统，内存消耗一直不超过 10%，但是观察 GC 日志，却发现 FGC 总是频繁产生，会是什么引起的？ 有人显式调用了 System.gc()
+- 11、Distuptor 有个可以设置链的长度，如果过大，然后对象大，消费完不主动释放，会导致溢出（需要后续学习）
+- 12、用 jvm 都会溢出，mycat 用崩过，1.6.5 某个临时版本解析 sql 子查询算法有问题，9 个 exists 的联合 sql 就导致生成几百万的对象
+- 13、new 大量线程，会产生 native thread OOM
+    - （太 low 了）：应该用线程池
+    - 解决方案：减少堆内存，太 Low 了，预留更多内存产生 native method
+    - JVM 内存占物理内存比例 50% - 80%
+
+# JVM 常用参数
+
+## GC 常用参数
+
+- -Xmn -Xms -Xmx -XsS
+- -XX:+UseTLAB
+- -XX:+PrintTLAB
+- -XX:TLABSize
+- -XX:+ResizeTLAB
+- -XX:+DisableExplictGC：设置该参数后，`System.gc()` 的显式调用不生效
+- -XX:+PrintGC
+- -XX:+PrintGCDetails
+- -XX:+PrintHeapAtGC
+- -XX:+PrintGCTimeStamps
+- -XX:+PrintGCApplicationConcurrentTime
+- -XX:+PrintGCApplicationStoppedTime
+- -XX:+PrintReferenceGC
+- -verbose:class
+- -XX:+PrintVMOptions
+- -XX:+PrintFlagsFinal
+- -Xloggc:/opt/log/gc.log
+- -XX:PerBlockSpin, -XX:CompileThreshold：锁自旋次数、的代代码检测参数、逃逸分析、标量替换等这些不建议设置
 
 
+## Parallel 常用参数
+
+- -XX:+UseSerialGC
+- -XX:SurvivorRatio
+- -XX:PreTenureSizeThreshold
+- -XX:MaxTenuringThreshold
+- -XX:+ParallelGCThreads
+- -XX:MaxGCPauseMillis
+- -XX:+UseAdaptiveSizePolicy
 
 
+## CMS 常用参数（较麻烦）
 
+
+- -XX:+UseConcMarkSweepGC
+- -XX:ParallelCMSThreads
+- -XX:CMSInitiatingOccupancyFraction
+- -XX:+UseCMSCompactAtFullCollection
+- -XX:CMSFullGCsBeforeCompaction
+- -XX:+CMSClassUnloadingEnabled
+- -XX:CMSInitiatingPermOccupancyFraction
+- -XX:UseCMSInitiatingOccupancyOnly
+- GCTimeRatio
+
+
+## G1 常用参数
+
+- -XX:+UseG1GC
+- -XX:MaxGCPauseMillis
+- -XX:GCPauseIntervalMillis
+- -XX:+G1HeapRegionSize
+- G1 ReservePercent
+- G1 NewSizePercent
+- G1 MaxNewSizePercent
+- GCTimeRatio
+
+
+## ZGC 常用参数
+
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
+- 
