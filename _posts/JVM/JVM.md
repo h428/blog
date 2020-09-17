@@ -1,7 +1,6 @@
 ---
 title: JVM
 categories:
-  - Java
   - JVM
 date: 2020-09-06 16:32:49
 ---

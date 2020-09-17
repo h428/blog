@@ -1,3 +1,7 @@
+---
+categories:
+  - Java
+---
 
 
 # HashMap 实现原理
