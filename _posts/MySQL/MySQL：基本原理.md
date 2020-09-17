@@ -1,7 +1,7 @@
 ---
 title: MySQL 基本原理
 categories:
-  - 数据库
+  - MySQL
 date: 2020-09-17 11:14:14
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: MySQL 数据备份
 categories:
-  - 数据库
+  - MySQL
 date: 2020-05-02 01:58:05
 ---
 

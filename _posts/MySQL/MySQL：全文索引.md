@@ -1,7 +1,7 @@
 ---
 title: MySQL 全文索引
 categories:
-  - 数据库
+  - MySQL
 date: 2020-05-01 23:44:23
 ---
 
