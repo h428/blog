@@ -426,6 +426,128 @@ public final boolean hasQueuedPredecessors() {
 - 若队列中有第一个排队节点 s，且 s 代表的线程恰好就是当前线程，`s.thread != Thread.currentThread()` 也会返回 false，说明当前线程的优先级最高，可以拿到锁，结果同上
 - 第三种情况主要和 `acquireQueued()` 方法配合，在 `acquireQueued()` 中，node 在入队后，会有两次自旋获取锁的机会，若此时前面的节点恰好释放了锁，c = 0，就会进入到该方法判定，此时 h != t 判定失效，因为队列中有排队元素，这时通过第三种情况就表示这个第一个排队的线程能够返回 false，从而继续执行获取锁的 CAS 操作
 
+## unlock()
+
+- 和加锁逻辑相比，解锁逻辑比较简单，而且非公平锁和公平锁的解锁逻辑一样，即他们复用 `tryRelease()` 方法
+- `unlock()` 的调用流程大致如图所示：![unlock](https://gitee.com/h428/img/raw/master/note/00000197.jpg)
+- 解锁就没有所谓的争用情况，对于排它锁，只有当前拿到锁的线程可以解锁，当然由于是可重入锁，支持多次加锁解锁操作
+- 首先，同样是 AQS 提供了模板方法 `release()`，其会调用不同锁的子类实现
+- 对于公平锁和非公平锁的解锁逻辑相同，因此直接在 Sync 中实现了 `tryRelease()` 方法并让公平锁和非公平锁复用
+
+### release()
+
+- 同样的，前面的解锁逻辑也是逐步往里调用
+- 首先，`lock.unlock()` 中调用 `sync.release()`
+```java
+/**
+ * Attempts to release this lock.
+ *
+ * <p>If the current thread is the holder of this lock then the hold
+ * count is decremented.  If the hold count is now zero then the lock
+ * is released.  If the current thread is not the holder of this
+ * lock then {@link IllegalMonitorStateException} is thrown.
+ *
+ * @throws IllegalMonitorStateException if the current thread does not
+ *         hold this lock
+ */
+public void unlock() {
+    sync.release(1); // release() 为 AQS 提供的模板方法，用于解锁
+}
+```
+- 由于 Sync 继承自 AQS，因此实际上上述代码调用的是 AQS 的模板方法，该模板方法的实现细节如下：
+```java
+/**
+ * Releases in exclusive mode.  Implemented by unblocking one or
+ * more threads if {@link #tryRelease} returns true.
+ * This method can be used to implement method {@link Lock#unlock}.
+ *
+ * @param arg the release argument.  This value is conveyed to
+ *        {@link #tryRelease} but is otherwise uninterpreted and
+ *        can represent anything you like.
+ * @return the value returned from {@link #tryRelease}
+ */
+public final boolean release(int arg) {
+    if (tryRelease(arg)) { // 调用子类的解锁逻辑尝试解锁
+        Node h = head;
+        // 这里的 waitStatus 要和前面的 acquireQueued 结合起来看
+        // 前面我们讲到每个 CLH Node 入队后有两次自旋获取锁的机会，并且第一次自旋会将 prev 的 waitStatus 设置为 Node.SIGNAL(-1)，只有检测到 prev 为 -1 才会返回 true 让当前 node 的线程 park
+        // 结合此处就可以明白，当前节点的 waitStatus 不为 0，则表示需要唤醒后继节点
+        // 若前面入队时，第一次自旋若不把 prev 节点的 waitStatus 设置为 SIGNAL 则此处将不会唤醒后继节点（waitStatus 默认为 0）
+        if (h != null && h.waitStatus != 0)
+            unparkSuccessor(h); // 解锁成功后唤醒 h 的后继节点，注意传进去的是 head
+        return true;
+    }
+    return false;
+}
+```
+
+### tryRelease()
+
+- 从模板方法中可以看到，真正的解锁逻辑有不同子类的 tryRelease() 实现
+- 下面我们看 ReentrantLock$Sync 的解锁逻辑：
+```java
+protected final boolean tryRelease(int releases) {
+    int c = getState() - releases; // 获取 state 并解锁
+    if (Thread.currentThread() != getExclusiveOwnerThread())
+        // 只有持有锁的线程才能解锁，否则异常
+        throw new IllegalMonitorStateException(); 
+    boolean free = false; // 标记解锁后锁是否释放
+    if (c == 0) { 
+        // 若本次解锁后，state 变为 0，表示可以释放锁
+        // 注意因为是可重入锁，可能会有多次重叠加锁和解锁的过程
+        free = true; // 可以释放锁
+        setExclusiveOwnerThread(null); // 占有锁的线程置位空
+    }
+    setState(c); // 更新 state
+    // 返回锁是否释放，注意可重入锁，只有 state 变为 0 表示锁释放了
+    // 正数说明虽然本次成功降低了 state 的值，但当前线程仍然持有锁
+    return free; 
+}
+```
+
+### unparkSuccessor
+
+```java
+/**
+ * Wakes up node's successor, if one exists.
+ *
+ * @param node the node，注意在 RL 中解锁时传进来的是 head
+ */
+private void unparkSuccessor(Node node) {
+    /*
+     * If status is negative (i.e., possibly needing signal) try
+     * to clear in anticipation of signalling.  It is OK if this
+     * fails or if status is changed by waiting thread.
+     */
+    // 注意解锁时传进来的 node 是 head，我们要唤醒 head 的后继节点
+    int ws = node.waitStatus; // 获取 head 的 waitStatus
+    if (ws < 0) 
+        // 唤醒之前需要同时需求清除 head 节点的 waitStatus 在唤醒 head.next
+        compareAndSetWaitStatus(node, ws, 0);
+
+    /*
+     * Thread to unpark is held in successor, which is normally
+     * just the next node.  But if cancelled or apparently null,
+     * traverse backwards from tail to find the actual
+     * non-cancelled successor.
+     */
+    Node s = node.next; // s 为待唤醒的节点
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        for (Node t = tail; t != null && t != node; t = t.prev)
+            if (t.waitStatus <= 0)
+                s = t;
+    }
+    if (s != null)
+        // 唤醒第一个正在排队的节点
+        LockSupport.unpark(s.thread);
+}
+```
+
+
+## lockInterruptibly()
+
+
 
 # ReentrantLock$NonfairSync
 
