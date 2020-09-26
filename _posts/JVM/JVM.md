@@ -25,7 +25,7 @@ date: 2020-09-06 16:32:49
     - Minor Version：和 Major Version 共同决定 class 文件版本号，1.7 默认为 51,1.8 默认为 52
     - Major Version
     - constant_pool_count
-    - constant_pool：长度为 constant_pool_count-1 的表
+    - constant_pool：长度为 constant_pool_count-1 的表，常量池计数器是从 1 开始计数的，将第 0 项常量空出来是有特殊考虑的，索引值为 0 代表“不引用任何一个常量池项”
     - access_flags
     - this_class
     - super_class
