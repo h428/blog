@@ -21,12 +21,12 @@ date: 2020-09-06 16:32:49
 # Class 文件结构
 
 - 第一层级，Class 文件按序包含：
-    - Magic Number
+    - Magic Number：固定值“咖啡Baby”
     - Minor Version：和 Major Version 共同决定 class 文件版本号，1.7 默认为 51,1.8 默认为 52
     - Major Version
     - constant_pool_count
     - constant_pool：长度为 constant_pool_count-1 的表，常量池计数器是从 1 开始计数的，将第 0 项常量空出来是有特殊考虑的，索引值为 0 代表“不引用任何一个常量池项”
-    - access_flags
+    - access_flags：public, final, super, interface, abstract, enum 等
     - this_class
     - super_class
     - interfaces_count
@@ -205,6 +205,7 @@ public class Main {
 
 - 双亲委派机制会被打破，我们可以通过重写 loadClass 方法来打破，双亲委派机制通过 loadClass 模板方法体现，我们覆盖了以后相当于模板方法没了，自然也就打破了双亲委派机制
 - 先自定义 MyClassLoader 覆盖 loadClass 方法，只要 `E:/data/jvm/` 目录下存在指定类，则不管父类找没找过，直接再找
+- 但实际上，即使打破了双亲委派，你也仍然不能加载 java.lang.String 这样的核心类，JVM 会检测到并抛异常的
 ```java
 public class MyClassLoader extends ClassLoader {
 
@@ -624,14 +625,14 @@ public class Singleton {
     }
 }
 ```
-- 机遇上述代码，我们看看在单例模式的 Double Check 中，若不加 volatile 会发生什么：
+- 机遇上述代码，我们看看在单例模式的 Double Check Lock 实现中，若不加 volatile 会发生什么：
     - 在单例的 synchronized 内部，我们赋值操作针对的是 static 变量 singleton
     - 若第一个线程首次进入 synchronized 内部，且还好在执行 `singleton = new Singleton();` 时发生了指令重排，此时 singleton 就处于半初始化状态，指向一个未完全初始化完毕的对象，即 singleton 虽然指向了对象，但构造方法还未执行，此时该对象内部全为默认值
     - 恰在此时，另一个线程也获取单例，进入 `getSingleton()` 后，发现 singleton 已经指向了一个未初始化的对象，则外层 check 不为空，则直接返回了一个未初始化的对象
     - 因而，单例模式的单例变量必须添加 volatile 关键字，主要是为了避免指令重排（synchronized 不能避免指令重排）
 - 根据 happens-before 原则，对 volatile 的变量的写操作必定先于后续的读操作完成（通过内存屏障保证），从而达到禁止重排的效果，这样另一个线程要么读到 null 进入内部阻塞锁，要么必然读到完整的初始化完毕的对象，这就是为什么单例的 DCL 实现必须加锁的原因
 
-## synchronize 实现细节
+## synchronized 实现细节
 
 - 字节码层面：synchronized 代码块会编译为 monitorenter 和 monitorexit 指令，synchronized 会在方法的 access_flags 打标记，以告诉 jvm 需要加锁
 - JVM 层面：C/C++ 调用了操作系统的同步机制
@@ -855,7 +856,7 @@ while (true) {
     - 方法区逻辑上包含运行时常量池，在实现上运行时常量池不一定位于方法区中，例如 String 就放在堆区，但是常量池相关的 String Table 应该还是在方法区
 - Run-Time Constant Pool：运行时常量池，辅助描述 class 字节码，编译器生成的的字面值、常量会被维护成表，并存储在该区域
     - 在 1.7 之前，HotSpot 直接利用 PermGen 存放字符串常量池，因此在 1.7 之前字符串字面值是分配在方法区内部，FGC 无法回收，过多字面值会导致 OOM（例如循环执行 `String.intern()` 将导致永久代 OOM ）
-    - 1.7 及以后，HotSpot 将原本存放在永久代中的字符串常量池移到了 Heap 中，因此最终不使用的字面值会被 FGC 回首（例如循环执行 `String.intern()` 将导致 Heap 的OOM，说明 String 确实分配在 Heap 中）
+    - 1.7 及以后，HotSpot 将原本存放在永久代中的字符串常量池移到了 Heap 中，因此最终不使用的字面值会被 FGC 回首（例如循环执行 `String.intern()` 将导致 Heap 的 OOM，说明 String 确实分配在 Heap 中）
     - 并非只有编译器才能将常量织入常量池，运行期间也可通过 `String.intern()` 方法进行优化将字符串存入常量池
 - Heap：堆，GC 的区域，所有线程共享
 - 各线程以及使用的各个区域大致如图：
