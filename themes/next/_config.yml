@@ -172,6 +172,7 @@ social:
   GitHub: https://github.com/h428 || fab fa-github
   #E-Mail: mailto:yourname@gmail.com || fa fa-envelope
   #Weibo: https://weibo.com/yourname || fab fa-weibo
+  # 小红书: https://www.xiaohongshu.com/user/profile/647f061700000000110002c0 || fab fa-book
   #Google: https://plus.google.com/yourname || fab fa-google
   #Twitter: https://twitter.com/yourname || fab fa-twitter
   #FB Page: https://www.facebook.com/yourname || fab fa-facebook
@@ -269,6 +270,7 @@ follow_me:
   GitHub: https://github.com/h428 || fab fa-github
   BiliBili: https://space.bilibili.com/222639764 || fab fa-youtube
   TikTok: https://v.douyin.com/iAc7AHmd/ || fab fa-telegram
+  RedBook: https://www.xiaohongshu.com/user/profile/647f061700000000110002c0 || fab fa-instagram
   #Telegram: https://t.me/channel_name || fab fa-telegram
   #WeChat: /images/wechat_channel.jpg || fab fa-weixin
   #RSS: /atom.xml || fa fa-rss
